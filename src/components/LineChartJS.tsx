@@ -332,7 +332,7 @@ export function LineChartJS() {
 
           {/* Y-axis chart */}
           <div style={{ width: '140px', height: '450px' }}>
-            <Line data={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]} options={yAxisOptions} width={140} height={450} />
+            <Line data={data} options={yAxisOptions} width={140} height={450} />
           </div>
         </div>
 
