@@ -1,0 +1,11 @@
+
+5:39:02 PM [vite] (client) Re-optimizing dependencies because lockfi
+5:39:02 PM [vite] (client) Re-optimizing dependencies because lockfile has changed
+
+  VITE v7.2.7  ready in 115 ms
+
+  ➜  Local:   http://localhost:5173/graph_sample/
+  ➜  Network: use --host to expose
+  ➜  press h + enter to show help
+5:39:39 PM [vite] (client) hmr update /src/components/LineChartJS.ts
+5:39:39 PM [vite] (client) hmr update /src/components/LineChartJS.tsx
