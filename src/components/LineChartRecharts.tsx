@@ -41,90 +41,70 @@ export function LineChartRecharts() {
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <h3 style={{ textAlign: 'center', marginBottom: '20px', color: '#fff' }}>
-        Monthly Sales Comparison (Drag to scroll)
+        Recharts - Fixed Y-axis, Scrollable X-axis
       </h3>
 
       <div
         style={{
-          maxWidth: '1000px',
+          maxWidth: '1200px',
           margin: '0 auto',
           display: 'flex',
           position: 'relative',
         }}
       >
-        {/* Fixed Y-axis area with legend and grid */}
+        {/* Fixed Y-axis area with legend */}
         <div
           style={{
             position: 'sticky',
             left: 0,
             zIndex: 10,
-            background: 'rgba(36, 36, 36, 0.98)',
+            // background: '#242424',
             paddingRight: '10px',
             borderRadius: '8px 0 0 8px',
           }}
         >
-          {/* Legend */}
-          <div style={{
-            padding: '10px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            marginBottom: '5px'
-          }}>
-            <div style={{
-              color: '#aaa',
-              fontSize: '10px',
-              fontWeight: 'bold',
-              marginBottom: '8px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Legend
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  width: '20px',
-                  height: '3px',
-                  background: 'rgb(75, 192, 192)',
-                  borderRadius: '2px'
-                }} />
-                <span style={{ color: '#888', fontSize: '11px' }}>2024</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  width: '20px',
-                  height: '3px',
-                  background: 'rgb(255, 99, 132)',
-                  borderRadius: '2px'
-                }} />
-                <span style={{ color: '#888', fontSize: '11px' }}>2023</span>
-              </div>
-            </div>
-          </div>
+          
 
-          {/* Y-axis chart */}
+          {/* Y-axis chart - only showing Y-axis */}
           <LineChart
             width={140}
             height={450}
-            data={data}
-            margin={{ top: 5, right: 10, left: 40, bottom: 80 }}
+            data={[
+              { value: 0 },
+              { value: 10 },
+              { value: 20 },
+              { value: 30 },
+              { value: 40 },
+              { value: 50 },
+              { value: 60 },
+              { value: 70 },
+              { value: 80 },
+              { value: 90 },
+              { value: 100 }
+            ]}
+            margin={{ top: 5, right: 0, left: 50, bottom: 80 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.1)"
-              horizontal={true}
+              // stroke="rgba(255, 255, 255, 0.2)"
+              horizontal={false}
               vertical={false}
             />
             <YAxis
+              dataKey="value"
               stroke="#888"
-              style={{ fontSize: '11px' }}
+              style={{ fontSize: '12px', fill: '#888' }}
               domain={[0, 100]}
               ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
-              width={60}
+              width={80}
+              tickLine={{ stroke: '#888', strokeWidth: 1 }}
+              axisLine={{ stroke: '#888', strokeWidth: 1 }}
+              tickFormatter={(value) => `${value}`}
               label={{
                 value: 'Sales ($)',
                 angle: -90,
                 position: 'insideLeft',
-                style: { fill: '#aaa', fontSize: '11px' }
+                style: { fill: '#aaa', fontSize: '12px', fontWeight: 'bold' }
               }}
             />
           </LineChart>
@@ -177,16 +157,16 @@ export function LineChartRecharts() {
         >
           <LineChart
             width={chartWidth}
-            height={550}
+            height={530}
             data={data}
-            margin={{ top: 105, right: 30, left: 0, bottom: 80 }}
+            margin={{ top: 5, right: 1, left: 0, bottom: 80 }}
             style={{ display: 'block' }}
           >
             <CartesianGrid
-              strokeDasharray="3 3"
-              stroke="rgba(255, 255, 255, 0.1)"
-              horizontal={true}
-              vertical={true}
+              // strokeDasharray="3 3"
+              // stroke="rgba(255, 255, 255, 0.1)"
+              horizontal={false}
+              vertical={false}
             />
             <XAxis
               dataKey="month"
@@ -202,6 +182,8 @@ export function LineChartRecharts() {
               style={{ fontSize: '11px' }}
               domain={[0, 100]}
               ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
+              tickLine={{ stroke: '#888' }}
+              axisLine={{ stroke: '#888' }}
               hide={true}
             />
             <Tooltip content={<CustomTooltipRecharts />} />

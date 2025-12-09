@@ -6,7 +6,6 @@ interface TooltipData {
     label: string
     value: string
     color: string
-    borderColor: string
   }[]
 }
 
@@ -59,9 +58,9 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
     gap: '8px',
   }
 
-  const colorBoxStyle = (color: string, borderColor: string): CSSProperties => ({
+  const colorBoxStyle = (color: string): CSSProperties => ({
     backgroundColor: color,
-    border: `2px solid ${borderColor}`,
+    border: `2px solid ${color}`,
     borderRadius: '4px',
     width: '16px',
     height: '16px',
@@ -80,10 +79,8 @@ export function CustomTooltip({ data, position, visible }: CustomTooltipProps) {
       <div>
         {data.items.map((item, index) => (
           <div key={index} style={itemStyle}>
-            <span style={colorBoxStyle(item.color, item.borderColor)} />
-            <span style={textStyle}>
-              {item.label}: {item.value}
-            </span>
+            <span style={colorBoxStyle(item.color)} />
+            <span style={textStyle}>{item.value}</span>
           </div>
         ))}
       </div>

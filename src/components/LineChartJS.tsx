@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useRef, useState, useMemo, useCallback } from 'react'
 import { Line } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -9,11 +9,10 @@ import {
   Title,
   Tooltip,
   Legend,
-  ChartOptions,
 } from 'chart.js'
+import type { ChartOptions } from 'chart.js'
 import { CustomTooltip } from './CustomTooltip'
 
-// Register ChartJS components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -25,78 +24,112 @@ ChartJS.register(
 )
 
 export function LineChartJS() {
+  const chartRef = useRef<ChartJS<'line'>>(null)
   const [tooltipData, setTooltipData] = useState<{
     title: string
-    items: { label: string; value: string; color: string; borderColor: string }[]
+    items: { label: string; value: string; color: string }[]
   } | null>(null)
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 })
   const [tooltipVisible, setTooltipVisible] = useState(false)
-  const chartRef = useRef<ChartJS>(null)
 
-  // Generate 5 years of data (60 months)
-  const generateMonthlyData = (baseValue: number, variance: number, trend: number) => {
-    const data = []
-    for (let i = 0; i < 60; i++) {
-      const trendValue = i * trend
-      const randomVariance = (Math.random() - 0.5) * variance
-      data.push(Math.max(20, Math.round(baseValue + trendValue + randomVariance)))
+  // 샘플 데이터 생성 (60개월 치) - 한 번만 생성
+  const chartData = useMemo(() => {
+    const generateData = (baseValue: number, variance: number) => {
+      return Array.from({ length: 60 }, (_, i) => {
+        const trend = i * 0.5
+        const random = (Math.random() - 0.5) * variance
+        return Math.max(0, Math.round(baseValue + trend + random))
+      })
     }
-    return data
-  }
 
-  const sales2024Data = generateMonthlyData(45, 15, 0.3)
-  const sales2023Data = generateMonthlyData(35, 12, 0.25)
+    // 월별 라벨 생성 (5년치)
+    const labels = Array.from({ length: 60 }, (_, i) => {
+      const year = 2020 + Math.floor(i / 12)
+      const month = (i % 12) + 1
+      return `${year}-${String(month).padStart(2, '0')}`
+    })
 
-  // Generate 60 months labels
-  const months = []
-  const years = [2020, 2021, 2022, 2023, 2024]
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-  for (const year of years) {
-    for (const month of monthNames) {
-      months.push(`${month} ${year}`)
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Dataset 1',
+          data: generateData(50, 20),
+          borderColor: 'rgb(75, 192, 192)',
+          backgroundColor: 'rgba(75, 192, 192, 0.5)',
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        },
+        {
+          label: 'Dataset 2',
+          data: generateData(40, 15),
+          borderColor: 'rgb(255, 99, 132)',
+          backgroundColor: 'rgba(255, 99, 132, 0.5)',
+          tension: 0.4,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        },
+      ],
     }
-  }
+  }, [])
 
-  const data = {
-    labels: months,
+  // Y축 전용 차트 데이터 (빈 데이터)
+  const yAxisData = useMemo(() => ({
+    labels: [''],
     datasets: [
       {
-        label: 'Sales 2024',
-        data: sales2024Data,
-        fill: false,
-        borderColor: 'rgb(75, 192, 192)',
-        backgroundColor: 'rgba(75, 192, 192, 0.5)',
-        borderWidth: 2,
-        tension: 0.4,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointBackgroundColor: 'rgb(75, 192, 192)',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2,
-      },
-      {
-        label: 'Sales 2023',
-        data: sales2023Data,
-        fill: false,
-        borderColor: 'rgb(255, 99, 132)',
-        backgroundColor: 'rgba(255, 99, 132, 0.5)',
-        borderWidth: 2,
-        tension: 0.4,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        pointBackgroundColor: 'rgb(255, 99, 132)',
-        pointBorderColor: '#fff',
-        pointBorderWidth: 2,
+        data: [],
       },
     ],
+  }), [])
+
+  // Custom tooltip handler - useRef로 안정적인 참조 유지
+  const tooltipHandler = useRef((context: any) => {})
+
+  tooltipHandler.current = (context: any) => {
+    const { chart, tooltip } = context
+
+    if (tooltip.opacity === 0) {
+      setTooltipVisible(false)
+      return
+    }
+
+    if (tooltip.body) {
+      const titleLines = tooltip.title || []
+      const bodyLines = tooltip.body.map((b: any) => b.lines)
+
+      const items = bodyLines.map((body: string[], i: number) => {
+        const colors = tooltip.labelColors[i]
+        const dataset = tooltip.dataPoints[i].dataset
+        const value = tooltip.dataPoints[i].parsed.y
+
+        return {
+          label: dataset.label || '',
+          value: `${dataset.label}: ${value}`,
+          color: colors.backgroundColor as string,
+        }
+      })
+
+      setTooltipData({
+        title: titleLines[0] || '',
+        items,
+      })
+
+      const scrollContainer = document.querySelector('.chartjs-scroll-container') as HTMLElement
+      const scrollLeft = scrollContainer?.scrollLeft || 0
+
+      const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas
+      setTooltipPosition({
+        x: positionX + tooltip.caretX - scrollLeft + 100,
+        y: positionY + tooltip.caretY,
+      })
+      setTooltipVisible(true)
+    }
   }
 
-  // Fixed width for scrollable chart (60px per data point)
-  const chartWidth = months.length * 60 // 60 months * 60px = 3600px
-
-  // Options for fixed Y-axis chart
-  const yAxisOptions: ChartOptions<'line'> = {
+  // Y축 전용 차트 옵션 (고정)
+  const yAxisOptions: ChartOptions<'line'> = useMemo(() => ({
     responsive: false,
     maintainAspectRatio: false,
     plugins: {
@@ -129,10 +162,10 @@ export function LineChartJS() {
         },
         title: {
           display: true,
-          text: 'Sales ($)',
+          text: 'Value',
           color: '#aaa',
           font: {
-            size: 11,
+            size: 12,
           },
         },
       },
@@ -145,11 +178,10 @@ export function LineChartJS() {
         radius: 0,
       },
     },
-    animation: false,
-  }
+  }), [])
 
-  // Options for scrollable main chart
-  const mainOptions: ChartOptions<'line'> = {
+  // 메인 차트 옵션 (스크롤 가능)
+  const mainOptions: ChartOptions<'line'> = useMemo(() => ({
     responsive: false,
     maintainAspectRatio: false,
     plugins: {
@@ -161,230 +193,114 @@ export function LineChartJS() {
       },
       tooltip: {
         enabled: false,
-        callbacks: {
-          label: function(context) {
-            const label = context.dataset.label || ''
-            const value = context.parsed.y
-            if (value === null) return label
-            return `${label}: $${value.toLocaleString()}`
-          },
-        },
-        external: (context) => {
-          const { chart, tooltip } = context
-
-          if (tooltip.opacity === 0) {
-            setTooltipVisible(false)
-            return
-          }
-
-          if (tooltip.body) {
-            const titleLines = tooltip.title || []
-            const bodyLines = tooltip.body.map((b: any) => b.lines)
-
-            const items = bodyLines.map((body: string[], i: number) => {
-              const colors = tooltip.labelColors[i]
-              const dataIndex = tooltip.dataPoints[i].dataIndex
-              const dataset = tooltip.dataPoints[i].dataset
-              const currentValue = tooltip.dataPoints[i].parsed.y
-
-              let valueText = body.join(', ')
-
-              // Add change information
-              if (dataIndex > 0 && currentValue !== null) {
-                const previousValue = dataset.data[dataIndex - 1] as number
-                const change = currentValue - previousValue
-                const percentage = ((change / previousValue) * 100).toFixed(1)
-
-                if (change > 0) {
-                  valueText += ` ▲ +$${change.toLocaleString()} (+${percentage}%)`
-                } else if (change < 0) {
-                  valueText += ` ▼ -$${Math.abs(change).toLocaleString()} (${percentage}%)`
-                }
-              }
-
-              return {
-                label: dataset.label || '',
-                value: valueText,
-                color: colors.backgroundColor as string,
-                borderColor: colors.borderColor as string,
-              }
-            })
-
-            setTooltipData({
-              title: titleLines[0] || '',
-              items,
-            })
-
-            const scrollContainer = document.querySelector('.chartjs-scroll-container-new') as HTMLElement
-            const scrollLeft = scrollContainer?.scrollLeft || 0
-
-            const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas
-            setTooltipPosition({
-              x: positionX + tooltip.caretX - scrollLeft + 140,
-              y: positionY + tooltip.caretY,
-            })
-            setTooltipVisible(true)
-          }
-        },
+        mode: 'index',
+        intersect: false,
+        external: (context) => tooltipHandler.current(context),
       },
     },
     scales: {
       x: {
         ticks: {
           color: '#888',
+          maxRotation: 45,
+          minRotation: 45,
           font: {
             size: 11,
           },
-          maxRotation: 45,
-          minRotation: 45,
         },
         grid: {
           color: 'rgba(255, 255, 255, 0.1)',
         },
       },
       y: {
-        display: false,
+        display: false, // Y축 숨김
         min: 0,
         max: 100,
         ticks: {
           stepSize: 10,
         },
-        grid: {
-          color: 'rgba(255, 255, 255, 0.1)',
-        },
       },
     },
-    animation: {
-      duration: 2000,
-      easing: 'easeInOutQuart',
-    },
-    transitions: {
-      active: {
-        animation: {
-          duration: 400
-        }
-      }
-    }
-  }
+  }), [])
+
+  // 스크롤 가능한 차트 너비 계산
+  const chartWidth = chartData.labels.length * 60 // 각 데이터 포인트당 60px
 
   return (
-    <div style={{ width: '100%', height: '100%' }}>
-      <h3 style={{ textAlign: 'center', marginBottom: '20px', color: '#fff' }}>
-        React-ChartJS-2 Implementation (Drag to scroll)
-      </h3>
+    <div style={{ width: '100%', padding: '20px' }}>
+      <h2 style={{ color: '#fff', textAlign: 'center', marginBottom: '20px' }}>
+        React-ChartJS-2 Line Chart
+      </h2>
+
+      {/* 범례 */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '20px',
+        marginBottom: '20px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '30px',
+            height: '3px',
+            background: 'rgb(75, 192, 192)'
+          }} />
+          <span style={{ color: '#888', fontSize: '13px' }}>Dataset 1</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            width: '30px',
+            height: '3px',
+            background: 'rgb(255, 99, 132)'
+          }} />
+          <span style={{ color: '#888', fontSize: '13px' }}>Dataset 2</span>
+        </div>
+      </div>
 
       <div
         style={{
-          maxWidth: '1000px',
-          margin: '0 auto',
           display: 'flex',
-          position: 'relative',
+          maxWidth: '1200px',
+          margin: '0 auto',
+          background: '#1a1a1a',
+          borderRadius: '8px',
+          padding: '20px',
         }}
       >
-        {/* Fixed Y-axis area with legend */}
+        {/* 고정된 Y축 영역 */}
         <div
           style={{
             position: 'sticky',
             left: 0,
             zIndex: 10,
-            // background: 'rgba(36, 36, 36, 0.98)',
+            background: '#1a1a1a',
             paddingRight: '10px',
-            borderRadius: '8px 0 0 8px',
           }}
         >
-          {/* Legend */}
-          <div style={{
-            padding: '10px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            marginBottom: '5px'
-          }}>
-            <div style={{
-              color: '#aaa',
-              fontSize: '10px',
-              fontWeight: 'bold',
-              marginBottom: '8px',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px'
-            }}>
-              Legend
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  width: '20px',
-                  height: '3px',
-                  background: 'rgb(75, 192, 192)',
-                  borderRadius: '2px'
-                }} />
-                <span style={{ color: '#888', fontSize: '11px' }}>2024</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <div style={{
-                  width: '20px',
-                  height: '3px',
-                  background: 'rgb(255, 99, 132)',
-                  borderRadius: '2px'
-                }} />
-                <span style={{ color: '#888', fontSize: '11px' }}>2023</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Y-axis chart */}
-          <div style={{ width: '140px', height: '450px' }}>
-            <Line data={data} options={yAxisOptions} width={140} height={450} />
+          <div style={{ width: '100px', height: '500px' }}>
+            <Line data={yAxisData} options={yAxisOptions} width={80} height={500} />
           </div>
         </div>
 
-        {/* Scrollable chart area */}
+        {/* 스크롤 가능한 차트 영역 */}
         <div
-          className="chartjs-scroll-container-new"
+          className="chartjs-scroll-container"
           style={{
             flex: 1,
-            height: '550px',
+            height: '500px',
             overflowX: 'auto',
             overflowY: 'hidden',
-            cursor: 'grab',
-            userSelect: 'none',
-          }}
-          onMouseDown={(e) => {
-            const element = e.currentTarget
-            element.style.cursor = 'grabbing'
-            let isDown = true
-            const startX = e.pageX - element.offsetLeft
-            const scrollLeft = element.scrollLeft
-
-            const handleMouseMove = (moveEvent: MouseEvent) => {
-              if (!isDown) return
-              moveEvent.preventDefault()
-              const x = moveEvent.pageX - element.offsetLeft
-              const walk = (x - startX) * 2
-              element.scrollLeft = scrollLeft - walk
-            }
-
-            const handleMouseUp = () => {
-              isDown = false
-              element.style.cursor = 'grab'
-              document.removeEventListener('mousemove', handleMouseMove)
-              document.removeEventListener('mouseup', handleMouseUp)
-            }
-
-            const handleMouseLeave = () => {
-              isDown = false
-              element.style.cursor = 'grab'
-              document.removeEventListener('mousemove', handleMouseMove)
-              document.removeEventListener('mouseup', handleMouseUp)
-            }
-
-            document.addEventListener('mousemove', handleMouseMove)
-            document.addEventListener('mouseup', handleMouseUp)
-            document.addEventListener('mouseleave', handleMouseLeave)
+            position: 'relative',
           }}
         >
-          <div style={{ width: `${chartWidth}px`, height: '550px', paddingTop: '105px' }}>
-            <Line ref={chartRef} data={data} options={mainOptions} width={chartWidth} height={445} />
+          <div style={{ width: `${chartWidth}px`, height: '500px' }}>
+            <Line ref={chartRef} data={chartData} options={mainOptions} width={chartWidth} height={500} />
           </div>
         </div>
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: '20px', color: '#888', fontSize: '14px' }}>
+        스크롤하여 더 많은 데이터를 확인하세요
       </div>
 
       <CustomTooltip
