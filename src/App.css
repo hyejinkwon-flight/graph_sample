@@ -1,0 +1,137 @@
+#root {
+  max-width: 1800px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+.charts-wrapper {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(700px, 1fr));
+  gap: 3rem;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+.chart-container {
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  min-height: 500px;
+}
+
+.chart-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+@media (max-width: 1600px) {
+  .charts-wrapper {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Recharts scroll container with custom scrollbar */
+.recharts-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 192, 192, 0.6) rgba(255, 255, 255, 0.1);
+}
+
+.recharts-scroll-container::-webkit-scrollbar {
+  height: 12px;
+}
+
+.recharts-scroll-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.recharts-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(75, 192, 192, 0.6);
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.recharts-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 192, 192, 0.8);
+}
+
+/* Enable drag scrolling by preventing chart elements from blocking */
+.recharts-scroll-container svg {
+  pointer-events: none;
+}
+
+.recharts-scroll-container .recharts-surface {
+  pointer-events: auto;
+}
+
+.recharts-scroll-container .recharts-line,
+.recharts-scroll-container .recharts-dots,
+.recharts-scroll-container .recharts-dot {
+  pointer-events: auto;
+}
+
+.recharts-scroll-container .recharts-tooltip-wrapper {
+  pointer-events: auto;
+}
+
+/* Chart.js scroll container with custom scrollbar */
+.chartjs-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 192, 192, 0.6) rgba(255, 255, 255, 0.1);
+}
+
+.chartjs-scroll-container::-webkit-scrollbar {
+  height: 12px;
+}
+
+.chartjs-scroll-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.chartjs-scroll-container::-webkit-scrollbar-thumb {
+  background: rgba(75, 192, 192, 0.6);
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.chartjs-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 192, 192, 0.8);
+}
+
+/* New Chart.js scroll container with custom scrollbar */
+.chartjs-scroll-container-new {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(75, 192, 192, 0.6) rgba(255, 255, 255, 0.1);
+}
+
+.chartjs-scroll-container-new::-webkit-scrollbar {
+  height: 12px;
+}
+
+.chartjs-scroll-container-new::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.chartjs-scroll-container-new::-webkit-scrollbar-thumb {
+  background: rgba(75, 192, 192, 0.6);
+  border-radius: 6px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+}
+
+.chartjs-scroll-container-new::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 192, 192, 0.8);
+}

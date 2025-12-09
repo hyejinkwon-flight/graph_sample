@@ -1,0 +1,38 @@
+{
+  "name": "graph_sample",
+  "version": "1.0.0",
+  "description": "graph sample project",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "vite build && gh-pages -d dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hyejinkwon-flight/graph_sample.git"
+  },
+  "author": "hyejin.kwon",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hyejinkwon-flight/graph_sample/issues"
+  },
+  "homepage": "https://hyejinkwon-flight.github.io/graph_sample",
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "chartjs-plugin-zoom": "^2.2.0",
+    "react": "^19.2.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.2.1",
+    "recharts": "^3.5.1",
+    "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.2",
+    "gh-pages": "^6.3.0",
+    "typescript": "^5.9.3"
+  }
+}
