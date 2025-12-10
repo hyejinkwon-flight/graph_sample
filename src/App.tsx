@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import './App.css'
-import { LineChart } from './components/LineChart'
+// import { LineChart } from './components/LineChart'
 import { LineChartRecharts } from './components/LineChartRecharts'
-import { LineChartJS } from './components/LineChartJS'
+// import { LineChartJS } from './components/LineChartJS'
 
 function App() {
   const [count, setCount] = useState<number>(0)
@@ -23,20 +23,20 @@ function App() {
       </div>
 
       <div className="charts-wrapper">
-        <div className="chart-container">
+        {/* <div className="chart-container">
           <h2 className="chart-title">Chart.js Implementation</h2>
           <LineChart />
-        </div>
+        </div> */}
 
         <div className="chart-container">
           <h2 className="chart-title">Recharts Implementation</h2>
           <LineChartRecharts />
         </div>
-
+{/* 
         <div className="chart-container">
           <h2 className="chart-title">React-ChartJS-2 Implementation</h2>
           <LineChartJS />
-        </div>
+        </div> */}
       </div>
     </>
   )

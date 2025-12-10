@@ -1,113 +1,214 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Label, LabelList, ResponsiveContainer } from 'recharts'
 import { CustomTooltipRecharts } from './CustomTooltipRecharts'
+import { useEffect, useState } from 'react'
 
 export function LineChartRecharts() {
-  // Generate 5 years of data (60 months)
-  const generateMonthlyData = (baseValue: number, variance: number, trend: number) => {
-    const data = []
-    for (let i = 0; i < 60; i++) {
-      const trendValue = i * trend
-      const randomVariance = (Math.random() - 0.5) * variance
-      data.push(Math.max(20, Math.round(baseValue + trendValue + randomVariance)))
+  const [data, setData] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    setLoading(true)
+
+    fetch('https://api3.test01-myrealtrip.com/flight/api/price/calendar/window', {
+      method: 'POST',
+      body: JSON.stringify({
+        "airlines": [
+          "All"
+        ],
+        "departureDate": "2025-12-16",
+        "from": "ICN",
+        "international": true,
+        "period": 5,
+        "to": "NRT",
+        "transfer": 0
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+      .then(response => response.json())
+      .then(responseData => {
+        // Process API data
+        const processedData = processApiData(responseData)
+        setData([...processedData, ...processedData])
+        setLoading(false)
+      })
+      .catch(error => {
+        console.error('Error fetching data:', error)
+        setLoading(false)
+      })
+
+  }, []) // Empty dependency array to run once
+
+  // Process API response data based on FlightCalendarWindowResponse model
+  const processApiData = (responseData: any) => {
+    // Define special days with labels
+    const specialDays: Record<string, string> = {
+      '12-25': '크리스마스',
+      '01-29': '설날',
+      '05-05': '어린이날'
     }
-    return data
+
+    // Extract flightWindowInfoResults array from FlightCalendarWindowResponse
+    const rawData = responseData?.flightWindowInfoResults
+
+    // If rawData is not an array, return empty array
+    if (!Array.isArray(rawData)) {
+      console.warn('flightWindowInfoResults is not an array:', rawData)
+      return []
+    }
+
+    return rawData.map((item: any) => {
+      // Use departureDate from FlightWindowInfo model
+      const dateString = item.departureDate || ''
+      const dateObj = new Date(dateString)
+      const month = dateObj.getMonth() + 1
+      const day = dateObj.getDate()
+      const dateKey = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+      // Use totalPrice from FlightWindowInfo model (왕복 총 가격)
+      const price = item.totalPrice || 0
+
+      return {
+        date: `${month}월 ${day}일`,
+        price: price,
+        label: specialDays[dateKey] || null,
+        isSpecial: !!specialDays[dateKey],
+        originalDate: dateString,
+        airline: item.airline,
+        returnDate: item.returnDate
+      }
+    }).filter((item: any) => item.price > 0) // Filter out invalid prices
   }
 
-  const sales2024Data = generateMonthlyData(45, 15, 0.3)
-  const sales2023Data = generateMonthlyData(35, 12, 0.25)
+  // Calculate stats
+  const prices = data.map(d => d.price).filter(p => p && !isNaN(p))
+  const minPrice = prices.length > 0 ? Math.min(...prices) : 0
+  const maxPrice = prices.length > 0 ? Math.max(...prices) : 0
+  const avgPrice = prices.length > 0 ? Math.round(prices.reduce((sum, p) => sum + p, 0) / prices.length) : 0
 
-  // Generate 60 months labels
-  const months = []
-  const years = [2020, 2021, 2022, 2023, 2024]
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  // Find date range dynamically from data
+  let startDateStr = '26.03.03'
+  let endDateStr = '26.03.08'
 
-  for (const year of years) {
-    for (const month of monthNames) {
-      months.push(`${month} ${year}`)
-    }
+  if (data.length > 0 && data[0].originalDate) {
+    const firstDate = new Date(data[0].originalDate)
+    const lastDate = new Date(data[data.length - 1].originalDate)
+
+    startDateStr = `${String(firstDate.getFullYear()).slice(2)}.${String(firstDate.getMonth() + 1).padStart(2, '0')}.${String(firstDate.getDate()).padStart(2, '0')}`
+    endDateStr = `${String(lastDate.getFullYear()).slice(2)}.${String(lastDate.getMonth() + 1).padStart(2, '0')}.${String(lastDate.getDate()).padStart(2, '0')}`
   }
 
-  const data = months.map((month, index) => ({
-    month,
-    sales2024: sales2024Data[index],
-    sales2023: sales2023Data[index],
-    dataIndex: index,
-    allData: { sales2024: sales2024Data, sales2023: sales2023Data }
-  }))
+  // Fixed width for scrollable chart (adjust based on screen size)
+  const isMobile = window.innerWidth < 768
+  const pointWidth = isMobile ? 40 : 20 // More space per point on mobile for better readability
+  const minWidth = isMobile ? window.innerWidth * 2.5 : 800 // 모바일에서는 화면 너비의 2.5배
+  const chartWidth = Math.max(data.length * pointWidth, minWidth)
 
-  // Fixed width for scrollable chart (60px per data point)
-  const chartWidth = data.length * 60 // 60 months * 60px = 3600px
+  // Calculate Y-axis domain based on actual data
+  const yAxisMax = maxPrice > 0 ? Math.ceil(maxPrice / 100000) * 100000 + 100000 : 600000
+  const yAxisStep = Math.ceil(yAxisMax / 4 / 100000) * 100000
+  const yAxisTicks = [0, yAxisStep, yAxisStep * 2, yAxisStep * 3, yAxisMax]
+
+  // Calculate X-axis interval based on data length and screen size
+  const xAxisInterval = isMobile
+    ? (data.length > 20 ? Math.floor(data.length / 7) : Math.max(Math.floor(data.length / 5), 0))
+    : (data.length > 30 ? Math.floor(data.length / 10) : Math.max(Math.floor(data.length / 7), 0))
+
+  // Custom label component for special dates
+  const renderCustomLabel = (props: any) => {
+    const { x, y, index } = props
+    const point = data[index]
+
+    if (point?.label) {
+      const isMobile = window.innerWidth < 768
+      return (
+        <text
+          x={x}
+          y={y - (isMobile ? 10 : 15)}
+          fill="#2196F3"
+          fontSize={isMobile ? '10px' : '12px'}
+          fontWeight="bold"
+          textAnchor="middle"
+        >
+          {point.label}
+        </text>
+      )
+    }
+    return null
+  }
 
   return (
-    <div style={{ width: '100%', height: '100%' }}>
-      <h3 style={{ textAlign: 'center', marginBottom: '20px', color: '#fff' }}>
-        Recharts - Fixed Y-axis, Scrollable X-axis
-      </h3>
+    <div style={{ width: '396px', height: '100vh', padding: 'clamp(5px, 2vw, 10px) clamp(10px, 3vw, 20px)'}}>
+      {/* Date Range and Price Card */}
+      <div
+        style={{
+          maxWidth: '100%',
+          margin: '0 0 clamp(10px, 2vh, 20px) 0',
+          background: 'rgba(255, 255, 255, 0.95)',
+          padding: 'clamp(12px, 2vh, 16px) clamp(14px, 3vw, 20px)',
+        }}
+      >
+        <div style={{ fontSize: 'clamp(12px, 3vw, 16px)', color: '#666', marginBottom: '4px' }}>
+          {startDateStr} - {endDateStr}
+        </div>
+        <div style={{ fontSize: 'clamp(18px, 5vw, 28px)', fontWeight: 'bold', color: '#2196F3' }}>
+          {maxPrice > 0 ? maxPrice.toLocaleString() : '로딩중...'}원~ {'>'}
+        </div>
+      </div>
 
       <div
         style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
+          width: '100%',
+          height: 'calc(100% - clamp(80px, 15vh, 120px))',
           display: 'flex',
+          flexDirection: 'row',
           position: 'relative',
+          gap: 'clamp(5px, 1vw, 10px)',
         }}
       >
-        {/* Fixed Y-axis area with legend */}
+        {/* Fixed Y-axis area */}
         <div
           style={{
+            width: isMobile ? '70px' : '90px',
+            flexShrink: 0,
             position: 'sticky',
             left: 0,
             zIndex: 10,
-            // background: '#242424',
+            background: '#fff',
             paddingRight: '10px',
-            borderRadius: '8px 0 0 8px',
           }}
         >
-          
-
-          {/* Y-axis chart - only showing Y-axis */}
-          <LineChart
-            width={140}
-            height={450}
-            data={[
-              { value: 0 },
-              { value: 10 },
-              { value: 20 },
-              { value: 30 },
-              { value: 40 },
-              { value: 50 },
-              { value: 60 },
-              { value: 70 },
-              { value: 80 },
-              { value: 90 },
-              { value: 100 }
-            ]}
-            margin={{ top: 5, right: 0, left: 50, bottom: 80 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              // stroke="rgba(255, 255, 255, 0.2)"
-              horizontal={false}
-              vertical={false}
-            />
-            <YAxis
-              dataKey="value"
-              stroke="#888"
-              style={{ fontSize: '12px', fill: '#888' }}
-              domain={[0, 100]}
-              ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
-              width={80}
-              tickLine={{ stroke: '#888', strokeWidth: 1 }}
-              axisLine={{ stroke: '#888', strokeWidth: 1 }}
-              tickFormatter={(value) => `${value}`}
-              label={{
-                value: 'Sales ($)',
-                angle: -90,
-                position: 'insideLeft',
-                style: { fill: '#aaa', fontSize: '12px', fontWeight: 'bold' }
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart
+              data={yAxisTicks.map(value => ({ value }))}
+              margin={{
+                top: isMobile ? 30 : 50,
+                right: 0,
+                left: 20,
+                bottom: isMobile ? 50 : 80
               }}
-            />
-          </LineChart>
+              style={{ outline: 'none' }}
+            >
+              <XAxis
+                height={isMobile ? 50 : 80}
+                tick={false}
+                axisLine={false}
+              />
+              <YAxis
+                dataKey="value"
+                stroke="transparent"
+                style={{ fontSize: isMobile ? '11px' : '13px', fill: '#888', fontWeight: '400' }}
+                domain={[0, yAxisMax]}
+                ticks={yAxisTicks}
+                width={isMobile ? 50 : 70}
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => `${value / 10000}만`}
+                orientation="left"
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Scrollable chart area */}
@@ -115,11 +216,13 @@ export function LineChartRecharts() {
           className="recharts-scroll-container"
           style={{
             flex: 1,
-            height: '550px',
+            height: '100%',
             overflowX: 'auto',
             overflowY: 'hidden',
             cursor: 'grab',
             userSelect: 'none',
+            position: 'relative',
+            WebkitOverflowScrolling: 'touch', // iOS smooth scrolling
           }}
           onMouseDown={(e) => {
             const element = e.currentTarget
@@ -154,62 +257,147 @@ export function LineChartRecharts() {
             document.addEventListener('mouseup', handleMouseUp)
             document.addEventListener('mouseleave', handleMouseLeave)
           }}
+          onTouchStart={(e) => {
+            const element = e.currentTarget
+            let isDown = true
+            const startX = e.touches[0].pageX
+            const scrollLeft = element.scrollLeft
+
+            const handleTouchMove = (moveEvent: TouchEvent) => {
+              if (!isDown) return
+              const x = moveEvent.touches[0].pageX
+              const walk = (startX - x) * 1.5
+              element.scrollLeft = scrollLeft + walk
+            }
+
+            const handleTouchEnd = () => {
+              isDown = false
+              document.removeEventListener('touchmove', handleTouchMove)
+              document.removeEventListener('touchend', handleTouchEnd)
+            }
+
+            document.addEventListener('touchmove', handleTouchMove, { passive: true })
+            document.addEventListener('touchend', handleTouchEnd)
+          }}
         >
-          <LineChart
-            width={chartWidth}
-            height={530}
-            data={data}
-            margin={{ top: 5, right: 1, left: 0, bottom: 80 }}
-            style={{ display: 'block' }}
-          >
-            <CartesianGrid
-              // strokeDasharray="3 3"
-              // stroke="rgba(255, 255, 255, 0.1)"
-              horizontal={false}
-              vertical={false}
-            />
-            <XAxis
-              dataKey="month"
-              stroke="#888"
-              style={{ fontSize: '11px' }}
-              interval={0}
-              angle={-45}
-              textAnchor="end"
-              height={80}
-            />
-            <YAxis
-              stroke="#888"
-              style={{ fontSize: '11px' }}
-              domain={[0, 100]}
-              ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]}
-              tickLine={{ stroke: '#888' }}
-              axisLine={{ stroke: '#888' }}
-              hide={true}
-            />
-            <Tooltip content={<CustomTooltipRecharts />} />
-            <Line
-              type="monotone"
-              dataKey="sales2024"
-              name="Sales 2024"
-              stroke="rgb(75, 192, 192)"
-              strokeWidth={2}
-              dot={{ fill: 'rgb(75, 192, 192)', strokeWidth: 2, r: 4, stroke: '#fff' }}
-              activeDot={{ r: 6 }}
-              animationDuration={2000}
-              animationEasing="ease-in-out"
-            />
-            <Line
-              type="monotone"
-              dataKey="sales2023"
-              name="Sales 2023"
-              stroke="rgb(255, 99, 132)"
-              strokeWidth={2}
-              dot={{ fill: 'rgb(255, 99, 132)', strokeWidth: 2, r: 4, stroke: '#fff' }}
-              activeDot={{ r: 6 }}
-              animationDuration={2000}
-              animationEasing="ease-in-out"
-            />
-          </LineChart>
+          <div style={{ width: `${chartWidth}px`, height: '100%', minHeight: 'clamp(300px, 50vh, 400px)' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={data}
+                margin={{
+                  top: window.innerWidth < 768 ? 30 : 50,
+                  right: window.innerWidth < 768 ? 10 : 30,
+                  left: 0,
+                  bottom: window.innerWidth < 768 ? 50 : 80
+                }}
+                style={{ outline: 'none' }}
+              >
+                <CartesianGrid
+                  strokeDasharray="0"
+                  stroke="rgba(200, 200, 200, 0.3)"
+                  horizontal={true}
+                  vertical={false}
+                />
+                <XAxis
+                  dataKey="date"
+                  stroke="#888"
+                  style={{ fontSize: 'clamp(8px, 2vw, 11px)' }}
+                  interval={xAxisInterval}
+                  angle={0}
+                  textAnchor="middle"
+                  height={window.innerWidth < 768 ? 50 : 80}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  stroke="#888"
+                  style={{ fontSize: 'clamp(8px, 2vw, 11px)' }}
+                  domain={[0, yAxisMax]}
+                  ticks={yAxisTicks}
+                  tickLine={false}
+                  axisLine={false}
+                  hide={true}
+                />
+
+                {/* Average price reference line */}
+                {avgPrice > 0 && (
+                  <ReferenceLine
+                    y={avgPrice}
+                    stroke="#999"
+                    strokeDasharray="5 5"
+                    strokeWidth={1}
+                  >
+                    <Label
+                      value="평균가"
+                      position="left"
+                      fill="#666"
+                      fontSize={window.innerWidth < 768 ? 10 : 12}
+                      offset={10}
+                    />
+                  </ReferenceLine>
+                )}
+
+                {/* Vertical reference line for special date (Christmas if exists) */}
+                {data.some(d => d.date === '12월 25일') && (
+                  <ReferenceLine
+                    x="12월 25일"
+                    stroke="#000"
+                    strokeWidth={window.innerWidth < 768 ? 1.5 : 2}
+                  />
+                )}
+
+                <Tooltip content={<CustomTooltipRecharts />} cursor={false}/>
+
+                <Line
+                  type="monotone"
+                  dataKey="price"
+                  name="항공권 가격"
+                  stroke="#2196F3"
+                  strokeWidth={window.innerWidth < 768 ? 1.5 : 2}
+                  dot={(props) => {
+                    const { cx, cy, index } = props
+                    const point = data[index]
+                    if (point?.isSpecial) {
+                      return (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={window.innerWidth < 768 ? 4 : 5}
+                          fill="#2196F3"
+                          stroke="#fff"
+                          strokeWidth={window.innerWidth < 768 ? 1.5 : 2}
+                        />
+                      )
+                    }
+                    return null
+                  }}
+                  activeDot={{ r: window.innerWidth < 768 ? 5 : 6 }}
+                  animationDuration={2000}
+                  animationEasing="ease-in-out"
+                >
+                  <LabelList content={renderCustomLabel} />
+                </Line>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Minimum price label
+          {minPrice > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: window.innerWidth < 768 ? '50px' : '80px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                color: '#f44336',
+                fontSize: 'clamp(11px, 3vw, 14px)',
+                fontWeight: 'bold',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              최저가 {minPrice.toLocaleString()}
+            </div>
+          )} */}
         </div>
       </div>
     </div>
