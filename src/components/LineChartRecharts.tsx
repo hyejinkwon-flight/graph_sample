@@ -88,6 +88,11 @@ export function LineChartRecharts() {
     const specialDays: Record<string, string> = {
       '12-25': '크리스마스',
       '01-29': '설날',
+      '01-30': '설날연휴1',
+      '01-31': '설날연휴2',
+      '02-01': '설날연휴3',
+      '02-02': '설날연휴4',
+      '02-03': '설날연휴5',
       '03-01': '삼일절',
       '05-01': '근로자의 날',
       '05-05': '어린이날',
@@ -104,8 +109,8 @@ export function LineChartRecharts() {
       console.warn('flightWindowInfoResults is not an array:', rawData)
       return []
     }
-
-    return rawData.map((item: any) => {
+    
+    const mappedData = rawData.map((item: any) => {
       // Use departureDate from FlightWindowInfo model
       const dateString = item.departureDate || ''
       const dateObj = new Date(dateString)
@@ -132,9 +137,46 @@ export function LineChartRecharts() {
         isSpecial: !!specialDays[dateKey],
         originalDate: dateString,
         airline: item.airline,
-        originalReturnDate: item.returnDate
+        originalReturnDate: item.returnDate,
+        labelLevel: 0 // Will be assigned later
       }
     }).filter((item: any) => item.price > 0) // Filter out invalid prices
+
+    // Assign label levels to prevent overlap based on actual date difference
+    const maxLevel = 3 // Number of stagger levels (0, 1, 2)
+    const dayThreshold = 7 // Days threshold to consider labels as adjacent
+
+    for (let i = 0; i < mappedData.length; i++) {
+      if (mappedData[i].label) {
+        const currentDate = new Date(mappedData[i].originalDate)
+        let maxLevelFromPrevious = -1
+
+        // Check all previous special days within threshold
+        for (let j = i - 1; j >= 0; j--) {
+          if (mappedData[j].label) {
+            const previousDate = new Date(mappedData[j].originalDate)
+            const daysDiff = Math.abs((currentDate.getTime() - previousDate.getTime()) / (1000 * 60 * 60 * 24))
+
+            if (daysDiff <= dayThreshold) {
+              // Within threshold, need to stack
+              maxLevelFromPrevious = Math.max(maxLevelFromPrevious, mappedData[j].labelLevel)
+            } else {
+              // Too far, no need to check further back
+              break
+            }
+          }
+        }
+
+        // Assign level: if no nearby labels, use 0; otherwise increment
+        if (maxLevelFromPrevious === -1) {
+          mappedData[i].labelLevel = 0
+        } else {
+          mappedData[i].labelLevel = (maxLevelFromPrevious + 1) % maxLevel
+        }
+      }
+    }
+
+    return mappedData
   }
 
   // Calculate stats
@@ -171,26 +213,11 @@ export function LineChartRecharts() {
     ? (data.length > 20 ? Math.floor(data.length / 7) : Math.max(Math.floor(data.length / 5), 0))
     : (data.length > 30 ? Math.floor(data.length / 10) : Math.max(Math.floor(data.length / 7), 0))
 
-  // Custom label component for special dates and minimum price
+  // Custom label component for minimum price only (special dates moved to fixed top area)
   const renderCustomLabel = (props: any) => {
     const { x, y, index } = props
     const point = data[index]
     const isMobile = window.innerWidth < 768
-
-    if (point?.label) {
-      return (
-        <text
-          x={x}
-          y={y - (isMobile ? 10 : 15)}
-          fill="#2196F3"
-          fontSize={isMobile ? '10px' : '12px'}
-          fontWeight="bold"
-          textAnchor="middle"
-        >
-          {point.label}
-        </text>
-      )
-    }
 
     if (point?.isMinPrice) {
       return (
@@ -212,7 +239,7 @@ export function LineChartRecharts() {
   }
 
   return (
-    <div style={{ width: '396px', height: '100vh', padding: 'clamp(5px, 2vw, 10px) clamp(10px, 3vw, 20px)'}}>
+    <div style={{ width: '340px', height: '320px', padding: 'clamp(5px, 2vw, 10px) clamp(10px, 3vw, 20px)'}}>
       {/* Date Range and Price Card */}
       <div
         style={{
@@ -355,6 +382,41 @@ export function LineChartRecharts() {
           }}
         >
           <div style={{ width: `${chartWidth}px`, height: '100%', minHeight: 'clamp(300px, 50vh, 400px)', position: 'relative' }}>
+            {/* Special day labels at top of chart */}
+            {data.map((point, index) => {
+              if (!point?.label) return null
+
+              const leftMargin = 0
+              const rightMargin = isMobile ? 10 : 30
+              const plotAreaWidth = chartWidth - leftMargin - rightMargin
+              const spacing = plotAreaWidth / (data.length - 1)
+              const xPosition = leftMargin + spacing * index
+
+              const baseTop = 5
+              const levelOffset = isMobile ? 12 : 18
+              const yPosition = baseTop + (point.labelLevel * levelOffset)
+
+              return (
+                <div
+                  key={`label-${index}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${xPosition}px`,
+                    top: `${yPosition}px`,
+                    transform: 'translateX(-50%)',
+                    color: '#2196F3',
+                    fontSize: isMobile ? '10px' : '12px',
+                    fontWeight: 'bold',
+                    whiteSpace: 'nowrap',
+                    pointerEvents: 'none',
+                    zIndex: 8
+                  }}
+                >
+                  {point.label}
+                </div>
+              )
+            })}
+
             {/* Vertical line for selected or minimum price */}
             {(() => {
               const displayIndex = selectedIndex !== null ? selectedIndex : data.findIndex(d => d.isMinPrice)
@@ -373,6 +435,18 @@ export function LineChartRecharts() {
               const selectedData = data[displayIndex] ?
                 data[displayIndex] : data.find(d => d.isMinPrice)
 
+              // Determine tooltip transform based on position to prevent overflow
+              let tooltipTransform = 'translate(-50%, 0)' // Default: center
+              const tooltipWidth = 200 // Approximate tooltip width
+
+              if (xPosition < tooltipWidth / 2) {
+                // Too close to left edge
+                tooltipTransform = 'translate(0, 0)'
+              } else if (xPosition > chartWidth - tooltipWidth / 2) {
+                // Too close to right edge
+                tooltipTransform = 'translate(-100%, 0)'
+              }
+
               return (
                 <>
                   <div
@@ -383,7 +457,7 @@ export function LineChartRecharts() {
                       top: `${topMargin}px`,
                       bottom: `${bottomMargin}px`,
                       width: '1px',
-                      backgroundColor: '#f44336',
+                      backgroundColor: '#000',
                       pointerEvents: 'none',
                       zIndex: 5
                     }}
@@ -395,7 +469,7 @@ export function LineChartRecharts() {
                         position: 'absolute',
                         left: `${xPosition}px`,
                         top: `${topMargin - 10}px`,
-                        transform: 'translate(-50%, 0)',
+                        transform: tooltipTransform,
                         background: 'rgba(255, 255, 255, 0.95)',
                         borderRadius: isMobile ? '6px' : '8px',
                         padding: isMobile ? '8px 12px' : '12px 16px',
@@ -428,6 +502,11 @@ export function LineChartRecharts() {
                   bottom: window.innerWidth < 768 ? 50 : 80
                 }}
                 style={{ outline: 'none' }}
+                onMouseMove={(e: any) => {
+                  if (e && e.activeTooltipIndex !== undefined) {
+                    setSelectedIndex(e.activeTooltipIndex)
+                  }
+                }}
               >
                 <CartesianGrid
                   strokeDasharray="0"
@@ -447,12 +526,13 @@ export function LineChartRecharts() {
                   axisLine={false}
                 />
                 <YAxis
-                  stroke="#888"
+                  stroke="#495056"
                   style={{ fontSize: 'clamp(8px, 2vw, 11px)' }}
                   domain={[0, yAxisMax]}
                   ticks={yAxisTicks}
                   tickLine={false}
                   axisLine={false}
+                  tickMargin={40}
                   hide={true}
                 />
 
