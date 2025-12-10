@@ -1,10 +1,12 @@
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, Label, LabelList, ResponsiveContainer } from 'recharts'
-import { CustomTooltipRecharts } from './CustomTooltipRecharts'
-import { useEffect, useState } from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine, Label, LabelList, ResponsiveContainer } from 'recharts'
+import { useEffect, useState, useRef } from 'react'
 
 export function LineChartRecharts() {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -30,15 +32,55 @@ export function LineChartRecharts() {
       .then(responseData => {
         // Process API data
         const processedData = processApiData(responseData)
-        setData([...processedData, ...processedData])
+        const duplicatedData = [...processedData, ...processedData]
+
+        // Find minimum price and mark it
+        if (duplicatedData.length > 0) {
+          const minPriceValue = Math.min(...duplicatedData.map(d => d.price).filter(p => p > 0))
+          duplicatedData.forEach(item => {
+            item.isMinPrice = item.price === minPriceValue
+          })
+        }
+
+        setData(duplicatedData)
         setLoading(false)
+
+        // Disable animation after initial load
+        setTimeout(() => {
+          setIsInitialLoad(false)
+        }, 2500)
       })
       .catch(error => {
         console.error('Error fetching data:', error)
         setLoading(false)
+        setIsInitialLoad(false)
       })
 
   }, []) // Empty dependency array to run once
+
+  // Scroll to minimum price after data is loaded and chart is rendered
+  useEffect(() => {
+    if (!loading && data.length > 0 && scrollContainerRef.current) {
+      const minPriceIndex = data.findIndex(d => d.isMinPrice)
+
+      if (minPriceIndex !== -1) {
+        // Wait for chart to render
+        setTimeout(() => {
+          const scrollContainer = scrollContainerRef.current
+          if (scrollContainer) {
+            const pointWidth = window.innerWidth < 768 ? 40 : 20
+            const scrollPosition = minPriceIndex * pointWidth - (scrollContainer.clientWidth / 2) + (pointWidth / 2)
+
+            // Smooth scroll to minimum price position
+            scrollContainer.scrollTo({
+              left: Math.max(0, scrollPosition),
+              behavior: 'smooth'
+            })
+          }
+        }, 2500) // Wait for animation to complete
+      }
+    }
+  }, [loading, data])
 
   // Process API response data based on FlightCalendarWindowResponse model
   const processApiData = (responseData: any) => {
@@ -46,7 +88,12 @@ export function LineChartRecharts() {
     const specialDays: Record<string, string> = {
       '12-25': '크리스마스',
       '01-29': '설날',
-      '05-05': '어린이날'
+      '03-01': '삼일절',
+      '05-01': '근로자의 날',
+      '05-05': '어린이날',
+      '08-15': '광복절',
+      '10-03': '개천절',
+      '10-09': '한글날',
     }
 
     // Extract flightWindowInfoResults array from FlightCalendarWindowResponse
@@ -62,21 +109,30 @@ export function LineChartRecharts() {
       // Use departureDate from FlightWindowInfo model
       const dateString = item.departureDate || ''
       const dateObj = new Date(dateString)
-      const month = dateObj.getMonth() + 1
-      const day = dateObj.getDate()
+      const year = dateObj.getFullYear().toString().slice(2)
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0')
+      const day = dateObj.getDate().toString().padStart(2, '0')
       const dateKey = `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+
+      const returnDateString = item.returnDate || ''
+      const returnDateObj = new Date(returnDateString)
+      const returnYear = returnDateObj.getFullYear().toString().slice(2)
+      const returnMonth = String(returnDateObj.getMonth() + 1).padStart(2, '0')
+      const returnDay = returnDateObj.getDate().toString().padStart(2, '0')
 
       // Use totalPrice from FlightWindowInfo model (왕복 총 가격)
       const price = item.totalPrice || 0
 
       return {
         date: `${month}월 ${day}일`,
+        departureDate: `${year}.${month}.${day}`,
+        returnDate: `${returnYear}.${returnMonth}.${returnDay}`,
         price: price,
         label: specialDays[dateKey] || null,
         isSpecial: !!specialDays[dateKey],
         originalDate: dateString,
         airline: item.airline,
-        returnDate: item.returnDate
+        originalReturnDate: item.returnDate
       }
     }).filter((item: any) => item.price > 0) // Filter out invalid prices
   }
@@ -115,13 +171,13 @@ export function LineChartRecharts() {
     ? (data.length > 20 ? Math.floor(data.length / 7) : Math.max(Math.floor(data.length / 5), 0))
     : (data.length > 30 ? Math.floor(data.length / 10) : Math.max(Math.floor(data.length / 7), 0))
 
-  // Custom label component for special dates
+  // Custom label component for special dates and minimum price
   const renderCustomLabel = (props: any) => {
     const { x, y, index } = props
     const point = data[index]
+    const isMobile = window.innerWidth < 768
 
     if (point?.label) {
-      const isMobile = window.innerWidth < 768
       return (
         <text
           x={x}
@@ -135,6 +191,23 @@ export function LineChartRecharts() {
         </text>
       )
     }
+
+    if (point?.isMinPrice) {
+      return (
+        <text
+          x={x}
+          y={y + (isMobile ? 20 : 25)}
+          fill="#f44336"
+          fontSize={isMobile ? '10px' : '12px'}
+          fontWeight="bold"
+          textAnchor="middle"
+        >
+          <tspan x={x} dy="0">{point.price.toLocaleString()}</tspan>
+          <tspan x={x} dy="1.2em">최저가</tspan>
+        </text>
+      )
+    }
+
     return null
   }
 
@@ -153,7 +226,7 @@ export function LineChartRecharts() {
           {startDateStr} - {endDateStr}
         </div>
         <div style={{ fontSize: 'clamp(18px, 5vw, 28px)', fontWeight: 'bold', color: '#2196F3' }}>
-          {maxPrice > 0 ? maxPrice.toLocaleString() : '로딩중...'}원~ {'>'}
+          {minPrice > 0 ? minPrice.toLocaleString() : '로딩중...'}원~ {'>'}
         </div>
       </div>
 
@@ -170,13 +243,13 @@ export function LineChartRecharts() {
         {/* Fixed Y-axis area */}
         <div
           style={{
-            width: isMobile ? '70px' : '90px',
+            width: isMobile ? '45px' : '45px',
             flexShrink: 0,
             position: 'sticky',
             left: 0,
             zIndex: 10,
             background: '#fff',
-            paddingRight: '10px',
+            // paddingRight: '10px',
           }}
         >
           <ResponsiveContainer width="100%" height="100%">
@@ -201,7 +274,7 @@ export function LineChartRecharts() {
                 style={{ fontSize: isMobile ? '11px' : '13px', fill: '#888', fontWeight: '400' }}
                 domain={[0, yAxisMax]}
                 ticks={yAxisTicks}
-                width={isMobile ? 50 : 70}
+                width={isMobile ? 25 : 35}
                 tickLine={false}
                 axisLine={false}
                 tickFormatter={(value) => `${value / 10000}만`}
@@ -213,6 +286,7 @@ export function LineChartRecharts() {
 
         {/* Scrollable chart area */}
         <div
+          ref={scrollContainerRef}
           className="recharts-scroll-container"
           style={{
             flex: 1,
@@ -280,7 +354,70 @@ export function LineChartRecharts() {
             document.addEventListener('touchend', handleTouchEnd)
           }}
         >
-          <div style={{ width: `${chartWidth}px`, height: '100%', minHeight: 'clamp(300px, 50vh, 400px)' }}>
+          <div style={{ width: `${chartWidth}px`, height: '100%', minHeight: 'clamp(300px, 50vh, 400px)', position: 'relative' }}>
+            {/* Vertical line for selected or minimum price */}
+            {(() => {
+              const displayIndex = selectedIndex !== null ? selectedIndex : data.findIndex(d => d.isMinPrice)
+              if (displayIndex === -1) return null
+
+              // Calculate exact position considering chart margins
+              const leftMargin = 0
+              const rightMargin = isMobile ? 10 : 30
+              const plotAreaWidth = chartWidth - leftMargin - rightMargin
+              const spacing = plotAreaWidth / (data.length - 1)
+              const xPosition = leftMargin + spacing * displayIndex
+
+              const topMargin = isMobile ? 30 : 50
+              const bottomMargin = isMobile ? 50 : 80
+
+              const selectedData = data[displayIndex] ?
+                data[displayIndex] : data.find(d => d.isMinPrice)
+
+              return (
+                <>
+                  <div
+                    className="vertical-reference-line"
+                    style={{
+                      position: 'absolute',
+                      left: `${xPosition}px`,
+                      top: `${topMargin}px`,
+                      bottom: `${bottomMargin}px`,
+                      width: '1px',
+                      backgroundColor: '#f44336',
+                      pointerEvents: 'none',
+                      zIndex: 5
+                    }}
+                  />
+                  {/* Fixed tooltip at top center of guideline */}
+                  {selectedData && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: `${xPosition}px`,
+                        top: `${topMargin - 10}px`,
+                        transform: 'translate(-50%, 0)',
+                        background: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: isMobile ? '6px' : '8px',
+                        padding: isMobile ? '8px 12px' : '12px 16px',
+                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                        border: '1px solid rgba(0, 0, 0, 0.1)',
+                        pointerEvents: 'none',
+                        zIndex: 10,
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      <div style={{ fontSize: isMobile ? '11px' : '13px', fontWeight: '600', marginBottom: isMobile ? '4px' : '8px', color: '#333' }}>
+                        {selectedData.departureDate} - {selectedData.returnDate}
+                      </div>
+                      <div style={{ fontSize: isMobile ? '14px' : '18px', fontWeight: 'bold', color: '#2196F3' }}>
+                        {selectedData.price.toLocaleString()}원 부터 
+                      </div>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={data}
@@ -337,17 +474,6 @@ export function LineChartRecharts() {
                   </ReferenceLine>
                 )}
 
-                {/* Vertical reference line for special date (Christmas if exists) */}
-                {data.some(d => d.date === '12월 25일') && (
-                  <ReferenceLine
-                    x="12월 25일"
-                    stroke="#000"
-                    strokeWidth={window.innerWidth < 768 ? 1.5 : 2}
-                  />
-                )}
-
-                <Tooltip content={<CustomTooltipRecharts />} cursor={false}/>
-
                 <Line
                   type="monotone"
                   dataKey="price"
@@ -357,6 +483,7 @@ export function LineChartRecharts() {
                   dot={(props) => {
                     const { cx, cy, index } = props
                     const point = data[index]
+
                     if (point?.isSpecial) {
                       return (
                         <circle
@@ -366,12 +493,67 @@ export function LineChartRecharts() {
                           fill="#2196F3"
                           stroke="#fff"
                           strokeWidth={window.innerWidth < 768 ? 1.5 : 2}
+                          onClick={() => setSelectedIndex(index)}
+                          style={{ cursor: 'pointer' }}
                         />
                       )
                     }
+
+                    if (point?.isMinPrice) {
+                      return (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={window.innerWidth < 768 ? 4 : 5}
+                          fill="#000"
+                          stroke="#fff"
+                          strokeWidth={window.innerWidth < 768 ? 1.5 : 2}
+                          onClick={() => setSelectedIndex(index)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      )
+                    }
+
                     return null
                   }}
-                  activeDot={{ r: window.innerWidth < 768 ? 5 : 6 }}
+                  activeDot={(props) => {
+                    const { cx, cy, index } = props
+                    const point = data[index]
+
+                    if (point?.isMinPrice) {
+                      return (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          r={window.innerWidth < 768 ? 5 : 6}
+                          fill="#000"
+                          stroke="#fff"
+                          strokeWidth={2}
+                          onClick={() => setSelectedIndex(index)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                      )
+                    }
+
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={window.innerWidth < 768 ? 5 : 6}
+                        fill="#2196F3"
+                        stroke="#fff"
+                        strokeWidth={2}
+                        onClick={() => setSelectedIndex(index)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    )
+                  }}
+                  onClick={(e: any) => {
+                    if (e && e.index !== undefined) {
+                      setSelectedIndex(e.index)
+                    }
+                  }}
+                  isAnimationActive={isInitialLoad}
                   animationDuration={2000}
                   animationEasing="ease-in-out"
                 >
@@ -380,24 +562,6 @@ export function LineChartRecharts() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-
-          {/* Minimum price label
-          {minPrice > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: window.innerWidth < 768 ? '50px' : '80px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                color: '#f44336',
-                fontSize: 'clamp(11px, 3vw, 14px)',
-                fontWeight: 'bold',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              최저가 {minPrice.toLocaleString()}
-            </div>
-          )} */}
         </div>
       </div>
     </div>
